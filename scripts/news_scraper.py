@@ -6,6 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
+from selenium.common.exceptions import StaleElementReferenceException
 
 # Time Based Imports
 import time 
@@ -63,13 +64,14 @@ class NewsScraper():
             # story_items = driver.find_elements(By.XPATH,"//main[@class='SearchResultsModule-main']/div[@class='SearchResultsModule-results']/bsp-list-loadmore[@class='PageListStandardD']/div[@class='PageList-items']/div[@class='PageList-items-item']")
             story_items = WebDriverWait(driver,20).until(EC.visibility_of_all_elements_located((By.XPATH, "//main[@class='SearchResultsModule-main']/div[@class='SearchResultsModule-results']/bsp-list-loadmore[@class='PageListStandardD']/div[@class='PageList-items']/div[@class='PageList-items-item']")))
 
-            for story in story_items:
-                story_content = story.find_element(By.XPATH,"./div[@class='PagePromo']/div[@class='PagePromo-content']") #.get_attribute('innerHTML')
-                story_title = story_content.find_element(By.XPATH,"./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']").text
-                story_description = story_content.find_element(By.XPATH,"./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']").text
-                # story_updated_date = story_content.find_element(By.XPATH,"./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp/span").text
-                story_timestamp = story_content.find_element(By.XPATH,"./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp").get_attribute('data-timestamp')
-                timestamp = datetime.utcfromtimestamp(float(story_timestamp)/1000)
+            for index,story in enumerate(story_items):
+                try:
+                    story_content = story.find_element(By.XPATH,"./div[@class='PagePromo']/div[@class='PagePromo-content']") #.get_attribute('innerHTML')
+                    story_title = story_content.find_element(By.XPATH,"./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']").text
+                    story_description = story_content.find_element(By.XPATH,"./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']").text
+                    # story_updated_date = story_content.find_element(By.XPATH,"./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp/span").text
+                    story_timestamp = story_content.find_element(By.XPATH,"./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp").get_attribute('data-timestamp')
+                    timestamp = datetime.utcfromtimestamp(float(story_timestamp)/1000)
                 # story_title = story_content.find_element(By.XPATH,"//div[@class='PagePromo-title']/a/span[@class='PagePromoContentIcons-text']").text
 
                 # print(f""" 
@@ -80,7 +82,9 @@ class NewsScraper():
                 
                 # """) # USE DATA CLASS TO STORE INFO 
 
-                stories[story_title] = NewsStory(title=story_title,content=story_description,date_created=timestamp)
+                    stories[index] = NewsStory(title=story_title,content=story_description,date_created=timestamp)
+                except StaleElementReferenceException:
+                    return None
 
         finally:
             driver.close()
@@ -94,8 +98,13 @@ def main():
     driver = news_scraper.connect_driver(web_driver=news_scraper.webdriver)
     stories = news_scraper.find_story_elements(driver=driver)
 
-    for story in stories:
-        print(story)
+    if stories is None:
+        print("No stories found - re-running web scraping activity")
+        driver = news_scraper.connect_driver(web_driver=news_scraper.webdriver)
+        stories = news_scraper.find_story_elements(driver=driver)
+    else:
+         for story in stories.values():
+            print(story.title)
 
 if __name__=="__main__":
     main()
