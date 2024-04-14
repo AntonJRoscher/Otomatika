@@ -9,11 +9,10 @@ from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import StaleElementReferenceException
 
 # Time Based Imports
-import time 
 from datetime import datetime
 
 # Type Imports
-from typing import Literal,List
+from typing import Literal
 
 from dataclasses import dataclass
 
@@ -24,10 +23,10 @@ class NewsStory:
     date_created:datetime
 
 class NewsScraper():
-    def __init__(self, web_driver=Literal['Firefox','Chrome','Safari','Edge']) -> None:
+    def __init__(self, web_driver='Firefox') -> None:
         self.webdriver = web_driver
 
-    def connect_driver(self, web_driver:str, url:str="https://apnews.com/") -> webdriver:
+    def connect_driver(self, web_driver:str = Literal['Firefox','Chrome','Safari','Edge'], url:str="https://apnews.com/") -> webdriver:
         if web_driver is not None:
             if web_driver == 'Firefox':
                 driver = webdriver.Firefox()
@@ -69,18 +68,10 @@ class NewsScraper():
                     story_content = story.find_element(By.XPATH,"./div[@class='PagePromo']/div[@class='PagePromo-content']") #.get_attribute('innerHTML')
                     story_title = story_content.find_element(By.XPATH,"./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']").text
                     story_description = story_content.find_element(By.XPATH,"./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']").text
-                    # story_updated_date = story_content.find_element(By.XPATH,"./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp/span").text
+
                     story_timestamp = story_content.find_element(By.XPATH,"./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp").get_attribute('data-timestamp')
                     timestamp = datetime.utcfromtimestamp(float(story_timestamp)/1000)
-                # story_title = story_content.find_element(By.XPATH,"//div[@class='PagePromo-title']/a/span[@class='PagePromoContentIcons-text']").text
 
-                # print(f""" 
-                #         {story_title} \n
-                #         {story_description} \n
-                #         # {story_updated_date} \n
-                #         {timestamp} \n
-                
-                # """) # USE DATA CLASS TO STORE INFO 
 
                     stories[index] = NewsStory(title=story_title,content=story_description,date_created=timestamp)
                 except StaleElementReferenceException:
@@ -91,8 +82,6 @@ class NewsScraper():
 
         return stories
 
-# SearchResultsModule-formInput
-
 def main():
     news_scraper = NewsScraper(web_driver='Firefox')
     driver = news_scraper.connect_driver(web_driver=news_scraper.webdriver)
@@ -100,6 +89,7 @@ def main():
 
     if stories is None:
         print("No stories found - re-running web scraping activity")
+        driver.close() # Close current open connection
         driver = news_scraper.connect_driver(web_driver=news_scraper.webdriver)
         stories = news_scraper.find_story_elements(driver=driver)
     else:
