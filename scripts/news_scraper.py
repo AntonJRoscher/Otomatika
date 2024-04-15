@@ -65,7 +65,7 @@ class NewsScraper():
         except StaleElementReferenceException:
             return False
 
-    def write_image(self, img_driver:webdriver, img_name, base_write_path:str):
+    def write_image(self, img_driver:webdriver, img_name, base_write_path:str) -> None:
         img_to_write = img_driver.find_element(
                                 By.XPATH,"//img"
                             ).screenshot_as_png
@@ -78,6 +78,10 @@ class NewsScraper():
                 file.write(
                 img_to_write
             )
+
+    def generate_filename(self, story_title:str):
+        filename = story_title.replace(",","").replace(".","").replace(" ", "_")
+        return filename+".png"
 
 
 
@@ -157,6 +161,7 @@ class NewsScraper():
 
 
                     img_present = self.check_image_exists(driver=story)
+                    filename = self.generate_filename(story_title=story_title)
 
                     if img_present:
                         story_img_url = story.find_element(
@@ -167,7 +172,7 @@ class NewsScraper():
                         driver.switch_to.new_window('window')
                         driver.get(story_img_url)
 
-                        self.write_image(driver,"trump1.png","images/")
+                        self.write_image(driver,filename,"images/")
                         # img_to_write = driver.find_element(
                         #         By.XPATH,"//img"
                         #     ).screenshot_as_png
@@ -187,7 +192,7 @@ class NewsScraper():
                         title=story_title,
                         content=story_description,
                         date_created=timestamp,
-                        img_filename="trump.jpg",
+                        img_filename=filename+".png",
                     )
                 except Exception as e:
                     logging.error(traceback.format_exc())
