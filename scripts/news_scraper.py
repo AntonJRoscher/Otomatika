@@ -19,6 +19,9 @@ from dataclasses import dataclass
 import logging
 import traceback
 
+# Filesystem Import
+import os 
+
 @dataclass
 class NewsStory:
     title:str
@@ -32,11 +35,6 @@ class NewsScraper():
         self.webdriver = self.type_driver(web_driver=web_driver)
         self.EXPECTED_CONDITION_WAIT_TIME = 10
         self.WAIT_TIME = 10
-    # def child_driver(self, url:str) -> webdriver:
-    #     child_driver = self.webdriver
-    #     child_driver.get(url)
-        
-    #     return child_driver
 
     def type_driver(self, web_driver:str = Literal['Firefox','Chrome','Safari','Edge']) -> webdriver:
         if web_driver is not None:
@@ -66,6 +64,23 @@ class NewsScraper():
                 return False
         except StaleElementReferenceException:
             return False
+
+    def write_image(self, img_driver:webdriver, img_name, base_write_path:str):
+        img_to_write = img_driver.find_element(
+                                By.XPATH,"//img"
+                            ).screenshot_as_png
+        write_path = os.path.join(os.getcwd(),base_write_path)
+
+        if not os.path.exists(write_path):
+            os.mkdir(write_path)
+
+        with open(write_path+img_name, "wb") as file:
+                file.write(
+                img_to_write
+            )
+
+
+
 
     def find_story_elements(self, driver: webdriver):
         stories = {}
@@ -152,22 +167,19 @@ class NewsScraper():
                         driver.switch_to.new_window('window')
                         driver.get(story_img_url)
 
-                        img_to_write = driver.find_element(
-                                By.XPATH,"//img"
-                            ).screenshot_as_png
-                        with open("trump.jpg", "wb") as file:
-                            file.write(
-                            img_to_write
-                        )
+                        self.write_image(driver,"trump1.png","images/")
+                        # img_to_write = driver.find_element(
+                        #         By.XPATH,"//img"
+                        #     ).screenshot_as_png
+                        # with open("trump.jpg", "wb") as file:
+                        #     file.write(
+                        #     img_to_write
+                        # )
 
                         driver.close()
                         driver.switch_to.window(driver.window_handles[0]) # Switch To First Window
                     else:
                         pass
-
-                    # /html/body/div[3]/bsp-search-results-module/form/div[2]/div/bsp-search-filters/div/main/div[3]/bsp-list-loadmore/div[2]/div[1]/div/div[1]/a/picture/img
-
-                    # Switch contexts/tabs to download image
 
 
                     # TODO - ADD FUNCTIONALITY FOR IF FILENAME IS NONE OR POPULATED
