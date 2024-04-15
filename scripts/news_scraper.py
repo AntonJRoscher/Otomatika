@@ -15,19 +15,23 @@ from datetime import datetime
 from typing import Literal
 from dataclasses import dataclass
 
-# Request Import For 
+# Logging Import
+import logging
+import traceback
 
 @dataclass
 class NewsStory:
     title:str
     content:str
     date_created:datetime
+    img_filename:str
 
 class NewsScraper():
     def __init__(self, web_driver='Firefox') -> None:
         self.web_driver_type = web_driver
         self.webdriver = self.type_driver(web_driver=web_driver)
-
+        self.EXPECTED_CONDITION_WAIT_TIME = 10
+        self.WAIT_TIME = 10
     # def child_driver(self, url:str) -> webdriver:
     #     child_driver = self.webdriver
     #     child_driver.get(url)
@@ -54,18 +58,27 @@ class NewsScraper():
         driver.get(url)
         return driver
 
+    def check_image_exists(self, driver:webdriver, img_xpath:str = "./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"):
+        try:
+            if len(driver.find_elements(By.XPATH,img_xpath))>0:
+                return True
+            else:
+                return False
+        except StaleElementReferenceException:
+            return False
+
     def find_story_elements(self, driver: webdriver):
         stories = {}
 
         try:
-            search_button = WebDriverWait(driver, 2).until(
+            search_button = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME,poll_frequency=.2).until(
                 EC.element_to_be_clickable(
                     (By.XPATH, "//button[@class='SearchOverlay-search-button']")
                 )
             )
             search_button.click()
 
-            searchbox = WebDriverWait(driver, 4).until(
+            searchbox = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME,poll_frequency=.2).until(
                 EC.element_to_be_clickable(
                     (
                         By.XPATH,
@@ -73,9 +86,10 @@ class NewsScraper():
                     )
                 )
             )
+            # TODO - ADD ABILITY TO SEARCH DYNAMICALLY
             searchbox.send_keys("trump")
 
-            searchbox_button_submit = WebDriverWait(driver, 2).until(
+            searchbox_button_submit = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME,poll_frequency=.2).until(
                 EC.element_to_be_clickable(
                     (
                         By.XPATH,
@@ -84,8 +98,9 @@ class NewsScraper():
                 )
             )
             searchbox_button_submit.click()
+            # TODO - ENCAPSULATE THIS INTO A SEARCH FUNCTION
 
-            filter = WebDriverWait(driver, 2).until(
+            filter = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME,poll_frequency=.2).until(
                 EC.element_to_be_clickable(
                     (By.XPATH, "//select[@class='Select-input' and @name='s']")
                 )
@@ -93,8 +108,8 @@ class NewsScraper():
             Select(filter).select_by_visible_text("Newest")
 
             # story_items = driver.find_elements(By.XPATH,"//main[@class='SearchResultsModule-main']/div[@class='SearchResultsModule-results']/bsp-list-loadmore[@class='PageListStandardD']/div[@class='PageList-items']/div[@class='PageList-items-item']")
-            story_items = WebDriverWait(driver, 20).until(
-                EC.visibility_of_all_elements_located(
+            story_items = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME,poll_frequency=.2).until(
+                EC.presence_of_all_elements_located(
                     (
                         By.XPATH,
                         "//main[@class='SearchResultsModule-main']/div[@class='SearchResultsModule-results']/bsp-list-loadmore[@class='PageListStandardD']/div[@class='PageList-items']/div[@class='PageList-items-item']",
@@ -125,27 +140,45 @@ class NewsScraper():
                     ).get_attribute("data-timestamp")
                     timestamp = datetime.utcfromtimestamp(float(story_timestamp) / 1000)
 
-                    # story_img_url = story.find_element(
-                    #     By.XPATH,
-                    #     "./div[@class='PagePromo']/div[@class='PagePromo-media']/a/picture/img[@class='Image']",
-                    # ).get_attribute("src")
 
-                    # download_img_driver = self.connect_driver(child_driver=True, url=story_img_url)
-                    # img_to_write = download_img_driver.find_element(
-                    #             By.TAG_NAME, "body"
-                    #         ).screenshot_as_png
-                    # with open("image_name.jpg", "wb") as file:
-                    #     file.write(
-                    #         img_to_write
-                    #     )
-                    # download_img_driver.close()
+                    img_present = self.check_image_exists(driver=story)
 
+                    if img_present:
+                        story_img_url = story.find_element(
+                            By.XPATH,
+                            "./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']",
+                        ).get_attribute("src")
+
+                        driver.switch_to.new_window('window')
+                        driver.get(story_img_url)
+
+                        img_to_write = driver.find_element(
+                                By.XPATH,"//img"
+                            ).screenshot_as_png
+                        with open("trump.jpg", "wb") as file:
+                            file.write(
+                            img_to_write
+                        )
+
+                        driver.close()
+                        driver.switch_to.window(driver.window_handles[0]) # Switch To First Window
+                    else:
+                        pass
+
+                    # /html/body/div[3]/bsp-search-results-module/form/div[2]/div/bsp-search-filters/div/main/div[3]/bsp-list-loadmore/div[2]/div[1]/div/div[1]/a/picture/img
+
+                    # Switch contexts/tabs to download image
+
+
+                    # TODO - ADD FUNCTIONALITY FOR IF FILENAME IS NONE OR POPULATED
                     stories[index] = NewsStory(
                         title=story_title,
                         content=story_description,
                         date_created=timestamp,
+                        img_filename="trump.jpg",
                     )
-                except StaleElementReferenceException:
+                except Exception as e:
+                    logging.error(traceback.format_exc())
                     return None
 
         finally:
@@ -161,9 +194,7 @@ def main():
 
     if stories is None:
         print("No stories found - re-running web scraping activity")
-        # driver.close() # Close current open connection
-        driver = news_scraper.connect_driver()
-        stories = news_scraper.find_story_elements(driver=driver)
+        main()
     else:
          for story in stories.values():
             print(story.title)
