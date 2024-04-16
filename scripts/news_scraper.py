@@ -145,14 +145,11 @@ class NewsScraper():
             )
             Select(filter).select_by_visible_text("Newest")
 
-            # driver.execute_script("window.scrollTo(0,document.body.scrollHeight);")
-
-            # story_items = driver.find_elements(By.XPATH,"//main[@class='SearchResultsModule-main']/div[@class='SearchResultsModule-results']/bsp-list-loadmore[@class='PageListStandardD']/div[@class='PageList-items']/div[@class='PageList-items-item']")
             story_items = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME).until(
                 EC.presence_of_all_elements_located(
                     (
                         By.XPATH,
-                        "//main[@class='SearchResultsModule-main']/div[@class='SearchResultsModule-results']/bsp-list-loadmore[@class='PageListStandardD']/div[@class='PageList-items']/div[@class='PageList-items-item']",
+                        "//body[@class='Page-body']/div[@class='SearchResultsPage-content']/bsp-search-results-module[@class='SearchResultsModule']/form[@class='SearchResultsModule-form']/div[@class='SearchResultsModule-ajax']/div[@class='SearchResultsModule-ajaxContent']/bsp-search-filters[@class='SearchResultsModule-filters']/div[@class='SearchResultsModule-wrapper']/main[@class='SearchResultsModule-main']/div[@class='SearchResultsModule-results']/bsp-list-loadmore[@class='PageListStandardD']/div[@class='PageList-items']/div[@class='PageList-items-item']"
                     )
                 )
             )
@@ -179,6 +176,8 @@ class NewsScraper():
                             By.XPATH,
                             "./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']",
                         ).text
+                    except Exception as e:
+                        logging.error(traceback.format_exc())
 
                     story_timestamp = story_content.find_element(
                         By.XPATH,
