@@ -39,15 +39,19 @@ class IO():
     def input_text(self, label:str):
         return input(f"{label}: ")
     def write_excel(self, filename:str, Data:NewsStory, sheet_name:str):
+        try:
+            workbook = xls.open('news_searches.xlsx')
+        except FileNotFoundError:
+            workbook  = xls.Workbook()
 
-        workbook  = xls.Workbook()
-        worksheet  = workbook.create_sheet()
+        worksheet  = workbook.create_sheet(sheet_name)
         worksheet.append(['Title','Story_Content','Date_Created','Image_Filename'])
 
         for row_num, news_story_data in enumerate(Data.values(), start=1):
             worksheet.append([news_story_data.title, news_story_data.content, news_story_data.date_created, news_story_data.img_filename])
             
         workbook.save('news_searches.xlsx')
+        workbook.close()
 
 class NewsScraper():
     def __init__(self, web_driver='Firefox') -> None:
@@ -77,7 +81,7 @@ class NewsScraper():
         driver.get(url)
         return driver
 
-    def check_element_exists(self, driver:webdriver, xpath:str = "./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"):
+    def check_element_exists(self, driver:webdriver, xpath:str):
         try:
             if len(driver.find_elements(By.XPATH,xpath))>0:
                 return True
@@ -86,16 +90,17 @@ class NewsScraper():
         except StaleElementReferenceException:
             return False
 
-    def write_image(self, img_driver:webdriver, img_name, base_write_path:str) -> None:
+    def write_image(self, img_driver:webdriver, img_name, base_write_path:str, search_phrase:str) -> None:
         img_to_write = img_driver.find_element(
                                 By.XPATH,"//img"
                             ).screenshot_as_png
-        write_path = os.path.join(os.getcwd(),base_write_path)
+        write_path = os.path.join(os.getcwd(),base_write_path+search_phrase)
 
         if not os.path.exists(write_path):
             os.mkdir(write_path)
 
-        with open(write_path+img_name, "wb") as file:
+        file_dir = write_path+'/'+img_name
+        with open(file_dir, "wb") as file:
                 file.write(
                 img_to_write
             )
@@ -154,42 +159,49 @@ class NewsScraper():
                 )
             )
 
+            #SCROLL TO THE START OF ITEMS 
+
             for index, story in enumerate(story_items):
                 try:
-                    story_content = story.find_element(
-                        By.XPATH,
-                        "./div[@class='PagePromo']/div[@class='PagePromo-content']",
-                    )
+                    if self.check_element_exists(driver=story, xpath="./div[@class='PagePromo']/div[@class='PagePromo-content']"):   
+                        story_content = story.find_element(
+                            By.XPATH,
+                            "./div[@class='PagePromo']/div[@class='PagePromo-content']",
+                        )
+                    else: 
+                        return None # Break program flow - no stories 
 
-                    story_title = story_content.find_element(
-                        By.XPATH,
-                        "./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']",
-                    ).text
+                    if self.check_element_exists(driver=story_content,xpath="./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
+                        story_title = story_content.find_element(
+                            By.XPATH,
+                            "./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']",
+                        ).text
+                    else:
+                        story_title = ""
 
-                    try:
+                    if self.check_element_exists(driver=story_content, xpath="./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
                         story_description = story_content.find_element(
                             By.XPATH,
                             "./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']",
                         ).text
-                    except StaleElementReferenceException:
-                        story_description = story_content.find_element(
+                    else: 
+                        story_description = ""
+                        
+                    if self.check_element_exists(driver=story_content,xpath="./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp"):
+                        story_timestamp = story_content.find_element(
                             By.XPATH,
-                            "./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']",
-                        ).text
-                    except Exception as e:
-                        logging.error(traceback.format_exc())
+                            "./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp",
+                        ).get_attribute("data-timestamp")
+                        comparison_timestamp = datetime.utcfromtimestamp(float(story_timestamp) / 1000)
+                        timestamp = comparison_timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
-                    story_timestamp = story_content.find_element(
-                        By.XPATH,
-                        "./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp",
-                    ).get_attribute("data-timestamp")
-                    timestamp = datetime.utcfromtimestamp(float(story_timestamp) / 1000)
+                    else:
+                        timestamp = ""
 
 
-                    img_present = self.check_element_exists(driver=story)
                     filename = self.generate_filename(story_title=story_title)
 
-                    if img_present:
+                    if self.check_element_exists(driver=story, xpath="./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"):
                         story_img_url = story.find_element(
                             By.XPATH,
                             "./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']",
@@ -198,7 +210,7 @@ class NewsScraper():
                         driver.switch_to.new_window('window')
                         driver.get(story_img_url)
 
-                        self.write_image(driver,filename,"images/")
+                        self.write_image(driver,filename,"images/",search_phrase=search_phrase)
 
                         driver.close()
                         driver.switch_to.window(driver.window_handles[0]) # Switch To First Window
@@ -209,7 +221,7 @@ class NewsScraper():
                     stories[index] = NewsStory(
                         title=story_title,
                         content=story_description,
-                        date_created=timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                        date_created=timestamp,
                         img_filename=filename+".png",
                     )
                 except Exception as e:
