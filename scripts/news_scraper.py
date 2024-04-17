@@ -11,6 +11,7 @@ from selenium.common.exceptions import StaleElementReferenceException
 # Time Based Imports
 from datetime import datetime
 from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 
 # Type Imports
 from typing import Literal
@@ -22,7 +23,7 @@ import traceback
 
 # Filesystem Import
 import os 
-# import xlsxwriter as xls
+import sys
 import openpyxl as xls 
 
 
@@ -93,7 +94,7 @@ class NewsScraper():
     
     def check_story_month(self, story_date:datetime, period_of_news:int):
         today = datetime.today()
-        if ((period_of_news != 0) | (period_of_news !=1)):
+        if ((period_of_news != 0) and (period_of_news !=1)):
             if today.month == 12:
                 last_date = datetime(today.year, today.month, 31)
             else:
@@ -103,9 +104,9 @@ class NewsScraper():
             else:
                 return False
         else: 
-            end_range = today - datetime.timedelta(months=period_of_news) 
+            end_range = today - relativedelta(months=period_of_news) 
             last_date = datetime(end_range.year, end_range.month-1, 1) + timedelta(days=1) # get last months end date + 1 day
-            if story_date <= last_date:
+            if story_date >= last_date :
                 return True
             else:
                 return False
@@ -132,7 +133,14 @@ class NewsScraper():
     def find_story_elements(self, driver: webdriver, search_phrase:str, months_to_receive_news:int):
         stories = {}
         try:
-            # TODO - HANDLE POP-UP IF PRESENT
+            # THIS WILL DELETE THE POP-UP ELEMENT BY ID. I, HOWEVER, DID NOT RECEIVE THIS POP-UP IN CONSISTENTLY. ONLY WHEN THROTTLING INTERNET SPEED TO BE SLOWER
+            # IHAVE TEHEREFORE LEFT THE DELETION CODE IN - COMMENTED OUT 
+
+            # delete_pop_up_node = """
+            # element = document.getElementById("bx-group-2475153-9sIfbYI-h2");
+            # element.remove();
+            # """
+            # driver.execute_script(delete_pop_up_node)
 
             search_button = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME,poll_frequency=.2).until(
                 EC.element_to_be_clickable(
@@ -163,7 +171,7 @@ class NewsScraper():
             searchbox_button_submit.click()
             # TODO - ENCAPSULATE THIS INTO A SEARCH FUNCTION
 
-            filter = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME,poll_frequency=.2).until(
+            filter = WebDriverWait(driver, self.EXPECTED_CONDITION_WAIT_TIME).until(
                 EC.element_to_be_clickable(
                     (By.XPATH, "//select[@class='Select-input' and @name='s']")
                 )
@@ -189,7 +197,7 @@ class NewsScraper():
                         )
                     else: 
                         print('No stories found during enumeration')
-                        return None # Break program flow - no stories 
+                        return (1,None) # Break program flow - no stories 
 
                     if self.check_element_exists(driver=story_content,xpath="./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
                         story_title = story_content.find_element(
@@ -220,7 +228,7 @@ class NewsScraper():
 
                     if not self.check_story_month(comparison_timestamp,period_of_news=months_to_receive_news):
                         print('Maximum timedelta reached for months requested')
-                        return None
+                        return (2,stories)
 
 
                     filename = self.generate_filename(story_title=story_title)
@@ -250,7 +258,7 @@ class NewsScraper():
                     )
                 except Exception as e:
                     logging.error(traceback.format_exc())
-                    return None
+                    return (None,None)
 
         finally:
             driver.close()
@@ -260,14 +268,20 @@ class NewsScraper():
 def main():
     _io = IO() 
     searchphrase = _io.input_text('Enter News Phrase to Search')
-    months_to_receive_news = _io.input_text('Enter Months to Receive News')
+    months_to_receive_news = int(_io.input_text('Enter Months to Receive News'))
     news_scraper = NewsScraper(web_driver='Firefox')
     driver = news_scraper.connect_driver()
-    stories = news_scraper.find_story_elements(driver=driver, search_phrase=searchphrase,months_to_receive_news=months_to_receive_news)
+    return_val,stories = news_scraper.find_story_elements(driver=driver, search_phrase=searchphrase,months_to_receive_news=months_to_receive_news)
 
-    if stories is None:
+    if return_val is None:
+        print("Error Encountered during run \n Exiting...")
+    elif return_val == 1:
         print("No stories found - re-running web scraping activity")
         main()
+    elif return_val == 2:
+        print("Maximum stories reached for months requested \n Saving \n Exiting...")
+        _io.write_excel("news_stories.xlsx",stories,sheet_name=searchphrase)
+        sys.exit(0)
     else:
         _io.write_excel("news_stories.xlsx",stories,sheet_name=searchphrase)
 
