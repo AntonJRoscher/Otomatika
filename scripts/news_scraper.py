@@ -10,6 +10,7 @@ from selenium.common.exceptions import StaleElementReferenceException
 
 # Time Based Imports
 from datetime import datetime
+from datetime import timedelta
 
 # Type Imports
 from typing import Literal
@@ -89,7 +90,26 @@ class NewsScraper():
                 return False
         except StaleElementReferenceException:
             return False
-
+    
+    def check_story_month(self, story_date:datetime, period_of_news:int):
+        today = datetime.today()
+        if ((period_of_news != 0) | (period_of_news !=1)):
+            if today.month == 12:
+                last_date = datetime(today.year, today.month, 31)
+            else:
+                last_date = datetime(today.year, today.month - 1, 1) + timedelta(days=1) # get last months end date + 1 day 
+            if story_date >= last_date:
+                return True
+            else:
+                return False
+        else: 
+            end_range = today - datetime.timedelta(months=period_of_news) 
+            last_date = datetime(end_range.year, end_range.month-1, 1) + timedelta(days=1) # get last months end date + 1 day
+            if story_date <= last_date:
+                return True
+            else:
+                return False
+ 
     def write_image(self, img_driver:webdriver, img_name, base_write_path:str, search_phrase:str) -> None:
         img_to_write = img_driver.find_element(
                                 By.XPATH,"//img"
@@ -109,7 +129,7 @@ class NewsScraper():
         filename = story_title.replace(",","").replace(".","").replace(" ", "_")
         return filename+".png"
 
-    def find_story_elements(self, driver: webdriver, search_phrase:str):
+    def find_story_elements(self, driver: webdriver, search_phrase:str, months_to_receive_news:int):
         stories = {}
         try:
             # TODO - HANDLE POP-UP IF PRESENT
@@ -159,9 +179,8 @@ class NewsScraper():
                 )
             )
 
-            #SCROLL TO THE START OF ITEMS 
-
             for index, story in enumerate(story_items):
+                # TEST IF WE ARE AT THE LAST ELEMENT OF THE STORIES PRESENT IN PAGE 
                 try:
                     if self.check_element_exists(driver=story, xpath="./div[@class='PagePromo']/div[@class='PagePromo-content']"):   
                         story_content = story.find_element(
@@ -169,6 +188,7 @@ class NewsScraper():
                             "./div[@class='PagePromo']/div[@class='PagePromo-content']",
                         )
                     else: 
+                        print('No stories found during enumeration')
                         return None # Break program flow - no stories 
 
                     if self.check_element_exists(driver=story_content,xpath="./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
@@ -197,6 +217,10 @@ class NewsScraper():
 
                     else:
                         timestamp = ""
+
+                    if not self.check_story_month(comparison_timestamp,period_of_news=months_to_receive_news):
+                        print('Maximum timedelta reached for months requested')
+                        return None
 
 
                     filename = self.generate_filename(story_title=story_title)
@@ -236,9 +260,10 @@ class NewsScraper():
 def main():
     _io = IO() 
     searchphrase = _io.input_text('Enter News Phrase to Search')
+    months_to_receive_news = _io.input_text('Enter Months to Receive News')
     news_scraper = NewsScraper(web_driver='Firefox')
     driver = news_scraper.connect_driver()
-    stories = news_scraper.find_story_elements(driver=driver, search_phrase=searchphrase)
+    stories = news_scraper.find_story_elements(driver=driver, search_phrase=searchphrase,months_to_receive_news=months_to_receive_news)
 
     if stories is None:
         print("No stories found - re-running web scraping activity")
