@@ -106,6 +106,7 @@ class NewsScraper():
         img_to_write = img_driver.find_element("xpath","//img"
                             ).screenshot_as_png
         write_path = os.path.join(os.getcwd(),base_write_path+search_phrase)
+        print(write_path)
 
         if not os.path.exists(write_path):
             os.mkdir(write_path)
@@ -160,31 +161,31 @@ class NewsScraper():
                 # TEST IF WE ARE AT THE LAST ELEMENT OF THE STORIES PRESENT IN PAGE 
                 try:
                     # print(story.get_attribute('innerHTML'))
-                    if self.check_element_exists(driver=story, xpath="//div[@class='PagePromo']/div[@class='PagePromo-content']"):   
+                    if self.check_element_exists(driver=story, xpath="./div[@class='PagePromo']/div[@class='PagePromo-content']"):   
                         story_content = story.find_element("xpath",
-                            "//div[@class='PagePromo']/div[@class='PagePromo-content']"
+                            "./div[@class='PagePromo']/div[@class='PagePromo-content']"
                         )
                     else: 
                         print('No stories found during enumeration')
                         return (1,None) # Break program flow - no stories 
 
-                    if self.check_element_exists(driver=story_content,xpath="//bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
+                    if self.check_element_exists(driver=story_content,xpath="./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
                         story_title = story_content.find_element("xpath",
-                            "//bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"
+                            "./bsp-custom-headline[@custom-headline='div']/div[@class='PagePromo-title']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"
                         ).text
                     else:
                         story_title = ""
 
-                    if self.check_element_exists(driver=story_content, xpath="//div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
+                    if self.check_element_exists(driver=story_content, xpath="./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"):
                         story_description = story_content.find_element("xpath",
-                            "//div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"
+                            "./div[@class='PagePromo-description']/a[@class='Link ']/span[@class='PagePromoContentIcons-text']"
                         ).text
                     else: 
                         story_description = ""
                         
-                    if self.check_element_exists(driver=story_content,xpath="//div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp"):
+                    if self.check_element_exists(driver=story_content,xpath="./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp"):
                         story_timestamp = story_content.find_element("xpath",
-                            "//div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp"
+                            "./div[@class='PagePromo-byline']/div[@class='PagePromo-date']/bsp-timestamp"
                         ).get_attribute("data-timestamp")
 
                         comparison_timestamp = datetime.utcfromtimestamp(float(story_timestamp) / 1000)
@@ -200,9 +201,9 @@ class NewsScraper():
 
                     filename = self.generate_filename(story_title=story_title)
 
-                    if self.check_element_exists(driver=story, xpath="//div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"):
+                    if self.check_element_exists(driver=story, xpath="./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"):
                         story_img_url = story.find_element("xpath",
-                            "//div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"
+                            "./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"
                         ).get_attribute("src")
 
                         driver.switch_to.new_window('window')
