@@ -35,6 +35,8 @@ class NewsStory:
     content:str
     date_created:datetime
     img_filename:str
+    word_count:int
+    title_has_money:bool
 
 class IO():
     def __init__(self) -> None:
@@ -49,10 +51,10 @@ class IO():
             workbook  = xls.Workbook()
 
         worksheet  = workbook.create_sheet(sheet_name)
-        worksheet.append(['Title','Story_Content','Date_Created','Image_Filename'])
+        worksheet.append(['Title','Story_Content','Date_Created','Image_Filename','word_count','title_has_money'])
 
         for row_num, news_story_data in enumerate(Data.values(), start=1):
-            worksheet.append([news_story_data.title, news_story_data.content, news_story_data.date_created, news_story_data.img_filename])
+            worksheet.append([news_story_data.title, news_story_data.content, news_story_data.date_created, news_story_data.img_filename, news_story_data.word_count, news_story_data.title_has_money])
             
         workbook.save('news_searches.xlsx')
         workbook.close()
@@ -64,26 +66,36 @@ class NewsScraper():
         self.WAIT_TIME = 10
         # self.io = IO()
 
-    def type_driver(self):
-        driver = Selenium().brow
-
-        return driver
-
     def connect_driver(self, url:str="https://apnews.com/"):
+        """ This function connects to the requested url parameter provided 
+        url: The URL of the site to connect to, to recieve news articles"""
+
         driver = self.webdriver
         driver.open_available_browser(url)
         return driver
 
     def check_element_exists(self, driver, xpath:str):
+        """ This function checks whether or not an element exists before trying access it via its XPATH
+        driver: web driver used to access element 
+        xpath: the xpath of the element to check for"""
+
         try:
+            print('--------------------------------------------------------------')
+            print(driver.find_element("xpath",xpath).get_attribute("innerHTML"))
             if len(driver.find_element("xpath",xpath).text)>0:
                 return True
             else:
                 return False
         except Exception as e:
+            logging.error(traceback.format_exc())
             return False
     
     def check_story_month(self, story_date:datetime, period_of_news:int):
+        """ This function takes in the datetime of the story/article and compares it to the datetime range allowed/requested 
+        to receive news for. 
+        story_date: The datetime of the story/article
+        period_of_news: The number of months to receive news for"""
+
         today = datetime.today()
         if ((period_of_news != 0) and (period_of_news !=1)):
             if today.month == 12:
@@ -103,6 +115,13 @@ class NewsScraper():
                 return False
  
     def write_image(self, img_driver, img_name, base_write_path:str, search_phrase:str) -> None:
+        """ This functino writes the saved image from each article to a folder named after the search phrase
+            img_driver: the web driver used to access the image
+            img_name: the name of the image
+            base_write_path: the base path to write the image to
+            search_phrase: the search phrase used to name the folder
+        """
+
         img_to_write = img_driver.find_element("xpath","//img"
                             ).screenshot_as_png
         write_path = os.path.join(os.getcwd(),base_write_path+search_phrase)
@@ -118,10 +137,40 @@ class NewsScraper():
             )
 
     def generate_filename(self, story_title:str):
+        """ A function to generate the fiename of the image based on the title of the article. 
+        story_title: the title of the article"""
+
         filename = story_title.replace(",","").replace(".","").replace(" ", "_")
         return filename+".png"
 
+    def count_words(self, text:str):
+        """ A function to count the number of words in a string """
+        return len(text.split())
+
+    def title_contains_money(self, text:str):
+        """ I do know this is inefficient as it runs in O(n^2) time. However, 
+        I choose to utilise the solution I understand, rather than regex as regex expressions aren't my strongest suit.   
+        
+        This function checks if there are money identifiers present in the title of the article 
+        text: the title of the article
+        """
+        money_symbols = ["$", "€", "£"]
+        for symbol in money_symbols:
+            if symbol in text:
+                return True
+            return False
+
+
     def find_story_elements(self, driver , search_phrase:str, months_to_receive_news:int):
+        """ This function is the main driver of the bot. 
+        It takes in the web driver, the search phrase and the number of months to receive news for and finds the elements to interact with 
+        to pull down the data for each article/story. It stores the information in a Data class structure and writes the image to the filesystem
+        and article data into an excel file. 
+
+        driver: the web driver used to access the page
+        search_phrase: the search phrase used to find the articles/stories
+        months_to_receive_news: the number of months to receive news for"""
+
         stories = {}
         try:
             # THIS WILL DELETE THE POP-UP ELEMENT BY ID. I, HOWEVER, DID NOT RECEIVE THIS POP-UP IN CONSISTENTLY. ONLY WHEN THROTTLING INTERNET SPEED TO BE SLOWER
@@ -200,21 +249,38 @@ class NewsScraper():
 
 
                     filename = self.generate_filename(story_title=story_title)
+                    # /html/body/div[3]/bsp-search-results-module/form/div[2]/div/bsp-search-filters/div/main/div[3]/bsp-list-loadmore
+                    # /div[2]/div[1]
+                    # /div/div[1]/a/picture/img
 
-                    if self.check_element_exists(driver=story, xpath="./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"):
-                        story_img_url = story.find_element("xpath",
-                            "./div[@class='PagePromo']/div[@class='PagePromo-media']/a[@class='Link']/picture/img[@class='Image']"
-                        ).get_attribute("src")
+                    # if self.check_element_exists(driver=story_content,xpath="./div[@class='PagePromo']"):
 
-                        driver.switch_to.new_window('window')
-                        driver.get(story_img_url)
+                    if self.check_element_exists(driver=story, xpath= "./div/div/a/picture"):
+                        # story_img_url = story.find_element("xpath",
+                        #     "./div/div/a/picture/img"
+                        # ).get_attribute("src")
 
-                        self.write_image(driver,filename,"images/",search_phrase=search_phrase)
+                        # driver.switch_to.new_window('window')
+                        # driver.get(story_img_url)
 
-                        driver.close()
-                        driver.switch_to.window(driver.window_handles[0]) # Switch To First Window
+                        # self.write_image(driver,filename,"images/",search_phrase=search_phrase)
+
+                        # driver.close()
+                        # driver.switch_to.window(driver.window_handles[0]) # Switch To First Window
+                    # else:
+                        pass
                     else:
                         pass
+                    
+                    if (len(story_description) and len(story_title)) > 0:
+                        word_count = self.count_words(story_title) + self.count_words(story_description) 
+                    else: 
+                        word_count = 0
+
+                    if (len(story_title)) > 0:
+                        title_contains_money = self.title_contains_money(story_title)
+                    else:
+                        title_contains_money = False
 
 
                     stories[index] = NewsStory(
@@ -222,6 +288,9 @@ class NewsScraper():
                         content=story_description,
                         date_created=timestamp,
                         img_filename=filename+".png",
+                        word_count= word_count,
+                        title_has_money= title_contains_money
+
                     )
                 except Exception as e:
                     logging.error(traceback.format_exc())
