@@ -5,6 +5,7 @@ from RPA.Browser.Selenium import Selenium
 from selenium.webdriver.support.ui import Select
 
 
+
 # Time Based Imports
 from datetime import datetime
 from datetime import timedelta
@@ -41,10 +42,12 @@ class NewsStory:
 class IO():
     def __init__(self) -> None:
         pass
-
-    def input_text(self, label:str):
-        return input(f"{label}: ")
     def write_excel(self, filename:str, Data:NewsStory, sheet_name:str):
+        """ This function is responasble for writing the data to the excel file 
+            filename: the name of the file to write to
+            Data: the data to write to the file
+            sheet_name: the name of the sheet to write to
+        """
         try:
             workbook = xls.open('news_searches.xlsx')
         except FileNotFoundError:
@@ -74,15 +77,17 @@ class NewsScraper():
         driver.open_available_browser(url)
         return driver
 
-    def check_element_exists(self, driver, xpath:str):
+    def check_element_exists(self, driver, xpath:str, is_img:bool=False):
         """ This function checks whether or not an element exists before trying access it via its XPATH
         driver: web driver used to access element 
         xpath: the xpath of the element to check for"""
 
         try:
-            print('--------------------------------------------------------------')
-            print(driver.find_element("xpath",xpath).get_attribute("innerHTML"))
-            if len(driver.find_element("xpath",xpath).text)>0:
+            if not is_img:
+                length = len(driver.find_element("xpath",xpath).text)
+            else:
+                length = len(driver.find_element("xpath",xpath).get_attribute('outerHTML'))    
+            if length >0:
                 return True
             else:
                 return False
@@ -114,27 +119,22 @@ class NewsScraper():
             else:
                 return False
  
-    def write_image(self, img_driver, img_name, base_write_path:str, search_phrase:str) -> None:
-        """ This functino writes the saved image from each article to a folder named after the search phrase
+    def write_image(self, img_driver, img_name, base_write_path:str) -> None:
+        """ This functino writes the saved image from each article to a folder
             img_driver: the web driver used to access the image
             img_name: the name of the image
             base_write_path: the base path to write the image to
-            search_phrase: the search phrase used to name the folder
         """
 
-        img_to_write = img_driver.find_element("xpath","//img"
-                            ).screenshot_as_png
-        write_path = os.path.join(os.getcwd(),base_write_path+search_phrase)
-        print(write_path)
+
+        write_path = os.path.join(os.getcwd(),base_write_path)
 
         if not os.path.exists(write_path):
             os.mkdir(write_path)
 
         file_dir = write_path+'/'+img_name
-        with open(file_dir, "wb") as file:
-                file.write(
-                img_to_write
-            )
+
+        img_driver.capture_page_screenshot(filename=file_dir)
 
     def generate_filename(self, story_title:str):
         """ A function to generate the fiename of the image based on the title of the article. 
@@ -182,11 +182,11 @@ class NewsScraper():
             # """
             # driver.execute_script(delete_pop_up_node)
 
-            search_button = driver.find_element("//button[@class='SearchOverlay-search-button']")
+            search_button = driver.find_element("class:SearchOverlay-search-button")
             search_button.click()
 
             searchbox = driver.find_element(
-                        "//input[@name='q' and @class='SearchOverlay-search-input']"
+                        "class:SearchOverlay-search-input"
                     )
             
             searchbox.send_keys(f"{search_phrase}")
@@ -197,7 +197,8 @@ class NewsScraper():
             searchbox_button_submit.click()
             # # TODO - ENCAPSULATE THIS INTO A SEARCH FUNCTION
 
-            filter = driver.find_element("//select[@class='Select-input' and @name='s']")
+            filter = driver.find_element(
+                "//select[@class='Select-input' and @name='s']")
             filter.click()
             Select(filter).select_by_visible_text("Newest")
             
@@ -242,6 +243,7 @@ class NewsScraper():
 
                     else:
                         timestamp = ""
+                        comparison_timestamp = datetime(1990,1,1)
 
                     if not self.check_story_month(comparison_timestamp,period_of_news=months_to_receive_news):
                         print('Maximum timedelta reached for months requested')
@@ -249,26 +251,23 @@ class NewsScraper():
 
 
                     filename = self.generate_filename(story_title=story_title)
-                    # /html/body/div[3]/bsp-search-results-module/form/div[2]/div/bsp-search-filters/div/main/div[3]/bsp-list-loadmore
-                    # /div[2]/div[1]
-                    # /div/div[1]/a/picture/img
 
-                    # if self.check_element_exists(driver=story_content,xpath="./div[@class='PagePromo']"):
+                    if self.check_element_exists(driver=story, xpath= "./div/div/a/picture", is_img=True):
+                        story_img_url = story.find_element("xpath",
+                            "./div/div/a/picture/img"
+                        ).get_attribute("src")
 
-                    if self.check_element_exists(driver=story, xpath= "./div/div/a/picture"):
-                        # story_img_url = story.find_element("xpath",
-                        #     "./div/div/a/picture/img"
-                        # ).get_attribute("src")
+                        print(story_img_url)
 
-                        # driver.switch_to.new_window('window')
+                        driver.open_available_browser(story_img_url)
                         # driver.get(story_img_url)
 
-                        # self.write_image(driver,filename,"images/",search_phrase=search_phrase)
+                        self.write_image(driver,filename,"images/")
 
-                        # driver.close()
+                        driver.close_window()
                         # driver.switch_to.window(driver.window_handles[0]) # Switch To First Window
                     # else:
-                        pass
+                        # pass
                     else:
                         pass
                     
@@ -312,6 +311,7 @@ def main():
 
     script_params_wi = WorkItems()
     script_params_wi.get_input_work_item()
+    # Can use a loop to iterate through all items if there are more search terms that need to be added to the work item file 
 
     searchphrase = script_params_wi.get_work_item_variable("SEARCH_ITEM")
     months_to_receive_news = script_params_wi.get_work_item_variable("TIME_PERIOD")
@@ -324,6 +324,7 @@ def main():
         print("Error Encountered during run \n Exiting...")
     elif return_val == 1:
         print("No stories found - re-running web scraping activity")
+        driver.close_all_browsers()
         main()
     elif return_val == 2:
         print("Maximum stories reached for months requested \n Saving \n Exiting...")
